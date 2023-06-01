@@ -1,0 +1,337 @@
+/*
+ * Copyright (c) 2021 OpenFTC Team
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package org.firstinspires.ftc.teamcode.OpenCV;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.openftc.apriltag.AprilTagDetection;
+import org.openftc.easyopencv.OpenCvCamera;
+import org.openftc.easyopencv.OpenCvCameraFactory;
+import org.openftc.easyopencv.OpenCvCameraRotation;
+import org.openftc.easyopencv.OpenCvInternalCamera;
+
+import java.util.ArrayList;
+
+@Autonomous(name = "detect", group = "hugo")
+
+public class Camera_Example extends LinearOpMode
+{
+    //initizalize motors
+    private DcMotor leftFrontMotor = null;
+    private DcMotor leftBackMotor = null;
+    private DcMotor rightFrontMotor = null;
+    private DcMotor rightBackMotor = null;
+    private DcMotor slide = null;
+    private DcMotor slide2 = null;
+    //creating servo motor
+    private Servo claw = null;
+
+
+    public void forward(double power){
+        leftFrontMotor.setPower(power);
+        leftBackMotor.setPower(power);
+        rightFrontMotor.setPower(-power);
+        rightBackMotor.setPower(-power);
+
+    }
+
+    public void backward(double power)
+    {
+        leftFrontMotor.setPower(-power);
+        leftBackMotor.setPower(-power);
+        rightFrontMotor.setPower(power);
+        rightBackMotor.setPower(power);
+    }
+    public void strafeLeft(double power)
+    {
+        leftFrontMotor.setPower(-power);
+        leftBackMotor.setPower(power);
+        rightFrontMotor.setPower(-power);
+        rightBackMotor.setPower(power);
+    }
+    public void strafeRight(double power)
+    {
+        leftFrontMotor.setPower(power);
+        leftBackMotor.setPower(-power);
+        rightFrontMotor.setPower(power);
+        rightBackMotor.setPower(-power);
+    }
+    public void turnLeft(double power)
+    {
+        leftFrontMotor.setPower(-power);
+        leftBackMotor.setPower(-power);
+        rightFrontMotor.setPower(-power);
+        rightBackMotor.setPower(-power);
+    }
+    public void turnRight(double power)
+    {
+        leftFrontMotor.setPower(power);
+        leftBackMotor.setPower(power);
+        rightFrontMotor.setPower(power);
+        rightBackMotor.setPower(power);
+    }
+    public void up()
+    {
+        slide.setDirection(DcMotorSimple.Direction.REVERSE);
+        slide2.setDirection(DcMotorSimple.Direction.REVERSE);
+        slide.setPower(1.0);
+        slide2.setPower(1.0);
+        claw.setPosition(0);
+        sleep(1000);
+        slide.getTargetPosition();
+        slide2.getTargetPosition();
+        slide.setTargetPosition(slide.getCurrentPosition());
+        slide2.setTargetPosition(slide.getCurrentPosition());
+        forward(0.27);
+        sleep(1000);
+        sleep(50);
+        forward(0);
+        sleep(1000);
+    }
+    public void close(){
+        claw.setPosition(0);
+
+    }
+
+
+    //vairable to run once
+    Boolean detectConeOnce = false;
+
+    OpenCvCamera camera;
+    AprilTagDetectionPipeline aprilTagDetectionPipeline;
+
+    static final double FEET_PER_METER = 3.28084;
+
+    // Lens intrinsics
+    // UNITS ARE PIXELS
+    // NOTE: this calibration is for the C920 webcam at 800x448.
+    // You will need to do your own calibration for other configurations!
+    double fx = 578.272;
+    double fy = 578.272;
+    double cx = 402.145;
+    double cy = 221.506;
+
+    // UNITS ARE METERS
+    double tagsize = 0.166;
+
+    //Tag ID's of cone sleeve
+    int Left =8;
+    int Middle = 12;
+    int Right = 15;
+
+
+    AprilTagDetection tagOfInterest = null;
+
+    @Override
+    public void runOpMode()
+    {
+        //set motors to variables
+        leftFrontMotor = hardwareMap.get(DcMotor.class, "frontLeft");
+        leftBackMotor = hardwareMap.get(DcMotor.class, "backLeft");
+        rightFrontMotor = hardwareMap.get(DcMotor.class, "frontRight");
+        rightBackMotor = hardwareMap.get(DcMotor.class, "backRight");
+        slide = hardwareMap.get(DcMotor.class, "slide");
+        slide2 = hardwareMap.get(DcMotor.class, "slide2");
+        claw = hardwareMap.get(Servo.class, "claw");
+        //set all together
+
+        int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
+        camera = OpenCvCameraFactory.getInstance().createWebcam(hardwareMap.get(WebcamName.class, "Webcam 1"), cameraMonitorViewId);
+        aprilTagDetectionPipeline = new AprilTagDetectionPipeline(tagsize, fx, fy, cx, cy);
+
+        camera.setPipeline(aprilTagDetectionPipeline);
+        camera.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener()
+        {
+            @Override
+            public void onOpened()
+            {
+                camera.startStreaming(800,448, OpenCvCameraRotation.UPRIGHT);
+            }
+
+            @Override
+            public void onError(int errorCode)
+            {
+
+            }
+        });
+
+        telemetry.setMsTransmissionInterval(50);
+
+        /*
+         * The INIT-loop:
+         * This REPLACES waitForStart!
+         */
+        while (!isStarted() && !isStopRequested())
+        {
+            ArrayList<AprilTagDetection> currentDetections = aprilTagDetectionPipeline.getLatestDetections();
+
+            if(currentDetections.size() != 0)
+            {
+                boolean tagFound = false;
+
+                for(AprilTagDetection tag : currentDetections)
+                {
+                    if((tag.id == Left || tag.id == Middle || tag.id == Right) &&detectConeOnce == false)
+                    {
+                        tagOfInterest = tag;
+                        tagFound = true;
+                        detectConeOnce= false;
+                        break;
+                    }
+                }
+
+                if(tagFound)
+                {
+                    telemetry.addLine("Tag of interest is in sight!\n\nLocation data:");
+                    tagToTelemetry(tagOfInterest);
+
+                }
+                else
+                {
+                    telemetry.addLine("Don't see tag of interest :(");
+
+                    if(tagOfInterest == null)
+                    {
+                        telemetry.addLine("(The tag has never been seen)");
+                    }
+                    else
+                    {
+                        telemetry.addLine("\nBut we HAVE seen the tag before; last seen at:");
+                        tagToTelemetry(tagOfInterest);
+                    }
+                }
+
+            }
+            else
+            {
+                telemetry.addLine("Don't see tag of interest :(");
+
+                if(tagOfInterest == null)
+                {
+                    telemetry.addLine("(The tag has never been seen)");
+                }
+                else
+                {
+                    telemetry.addLine("\nBut we HAVE seen the tag before; last seen at:");
+                    tagToTelemetry(tagOfInterest);
+                }
+
+            }
+
+            telemetry.update();
+            sleep(20);
+        }
+
+        /*
+         * The START command just came in: now work off the latest snapshot acquired
+         * during the init loop.
+         */
+
+        /* Update the telemetry */
+        if(tagOfInterest != null)
+        {
+            telemetry.addLine("Tag snapshot:\n");
+            tagToTelemetry(tagOfInterest);
+            telemetry.update();
+        }
+        else
+        {
+            telemetry.addLine("No tag snapshot available, it was never sighted during the init loop :(");
+            telemetry.update();
+        }
+
+        /* Actually do something useful */
+        if(tagOfInterest.id ==Left) {
+            //leftCode
+            forward(1);
+            sleep(270);
+            forward(0);
+            sleep(1000);
+            strafeLeft(0.5);
+            sleep(1350);
+            strafeLeft(0);
+            sleep(1000);
+        }
+        else if((tagOfInterest == null || tagOfInterest.id ==Middle)){
+            //sleep 290 perfect square at full speed
+            //sleep 900 should make it look left
+            //perfect-----------------
+                close();
+                forward(1);
+                sleep(270);
+                forward(0);
+            //peerfect
+                //for full
+//                sleep(1700);
+//                turnRight(1);
+//                sleep(90);
+//                turnRight(0);
+//                sleep(800);
+//                strafeRight(0.12);
+//                sleep(100);
+//                up();
+
+        }
+        else if(tagOfInterest.id == Right){
+            //right
+            forward(1);
+            sleep(270);
+            forward(0);
+            sleep(1000);
+            strafeRight(0.5);
+            sleep(1350);
+            strafeRight(0);
+            sleep(1000);
+        }
+
+
+
+        /* You wouldn't have this in your autonomous, this is just to prevent the sample from ending */
+//        while (opModeIsActive()) {sleep(20);}
+    }
+
+    void tagToTelemetry(AprilTagDetection detection)
+    {
+        if(tagOfInterest.id ==Left) {
+            telemetry.addLine(String.format("parking one"));
+        }
+        else if(tagOfInterest == null || tagOfInterest.id ==Middle){
+            telemetry.addLine(String.format("parking two"));
+        }
+        else if(tagOfInterest.id == Right){
+            telemetry.addLine(String.format("parking three"));
+        }
+        //telemetry.addLine(String.format("\nDetected tag ID=%d", detection.id));
+        telemetry.addLine(String.format("Translation X: %.2f feet", detection.pose.x*FEET_PER_METER));
+        telemetry.addLine(String.format("Translation Y: %.2f feet", detection.pose.y*FEET_PER_METER));
+        telemetry.addLine(String.format("Translation Z: %.2f feet", detection.pose.z*FEET_PER_METER));
+        telemetry.addLine(String.format("Rotation Yaw: %.2f degrees", Math.toDegrees(detection.pose.yaw)));
+        telemetry.addLine(String.format("Rotation Pitch: %.2f degrees", Math.toDegrees(detection.pose.pitch)));
+        telemetry.addLine(String.format("Rotation Roll: %.2f degrees", Math.toDegrees(detection.pose.roll)));
+    }
+}
